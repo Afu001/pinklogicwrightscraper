@@ -1,7 +1,11 @@
 const express = require("express");
 const { chromium } = require("playwright"); // Use Playwright
 const bodyParser = require("body-parser");
+const cors = require("cors"); // Import CORS
 const app = express();
+
+// Add CORS middleware to allow requests from all origins
+app.use(cors());
 
 // Add body-parser middleware to parse JSON request bodies
 app.use(bodyParser.json());
@@ -26,14 +30,16 @@ const loginAndScrape = async (username, password) => {
       headless: true, // Use headless mode (no UI)
     });
 
-    const page = await browser.newPage();
+    const context = await browser.newContext();
+
+    const page = await context.newPage();
 
     await page.goto("https://fallzabdesk.szabist-isb.edu.pk/", {
       waitUntil: "domcontentloaded",
     });
 
-    await page.type('input[name="txtLoginName"]', username);
-    await page.type('input[name="txtPassword"]', password);
+    await page.fill('input[name="txtLoginName"]', username);
+    await page.fill('input[name="txtPassword"]', password);
 
     await page.click('img[alt="ZABDESK Login"]');
 

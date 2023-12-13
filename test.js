@@ -13,61 +13,12 @@ app.post("/scrape", async (req, res) => {
     const { data, subjects, marksData, lectureData } = await loginAndScrape(username, password);
     const numberOfSubjects = subjects.length;
     console.log(`Number of subjects: ${numberOfSubjects}`);
-
-    
-    const mergedData = subjects.map((subjectName) => {
-      const matchingMarksData = marksData.find((md) => md.subjectName === subjectName) || {};
-      const matchingLectureData = lectureData.find((ld) => ld.subjectName === subjectName) || {};
-      return {
-        subjectName,
-        marksData: matchingMarksData.marksData || [],
-        lectureData: matchingLectureData.lectureData || [],
-        sumQuiz: matchingMarksData.sumQuiz || 0,
-        sumAssignment: matchingMarksData.sumAssignment || 0,
-        totalAbsences: matchingLectureData.totalAbsences || 0,
-      };
-    });
-
-// i am logging merged data here
-mergedData.forEach((subjectData) => {
-  console.log(`Subject: ${subjectData.subjectName}`);
-  console.log(`  Sum Quiz: ${subjectData.marksData.sumQuiz}`);
-  console.log(`  Sum Assignment: ${subjectData.marksData.sumAssignment}`);
-  console.log(`  Total Absent: ${subjectData.totalAbsences}`);
-
-  //displaying marks obtained here
-  console.log("  Marks Obtained for Quizzes:");
-  if (Array.isArray(subjectData.marksData.marksData)) {
-    subjectData.marksData.marksData.forEach((quizInfo) => {
-      console.log(`    ${quizInfo.marksHead}: ${quizInfo.marksObtained}`);
-    });
-  } else {
-    console.log("    No quiz data available");
-  }
-
-  // display marks obtained for each assignment
-  console.log("  Marks Obtained for Assignments:");
-  if (Array.isArray(subjectData.marksData.marksData)) {
-    subjectData.marksData.marksData.forEach((assignmentInfo) => {
-      console.log(`    ${assignmentInfo.marksHead}: ${assignmentInfo.marksObtained}`);
-    });
-  } else {
-    console.log("    No assignment data available");
-  }
-});
-
-
-
-    res.json({ data, subjects, marksData, lectureData, mergedData });
+    res.json({ data, subjects, marksData, lectureData });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "An error occurred" });
   }
 });
-
-
-
-
 
 const loginAndScrape = async (username, password) => {
   let browser;
@@ -126,12 +77,12 @@ const loginAndScrape = async (username, password) => {
       })
     );
 
-    // Looping through subjects
+    // Loop through subjects and scrape lecture data
     const lectureData = [];
     for (let subjectIndex = 0; subjectIndex < subjectNames.length; subjectIndex++) {
       const subjectName = subjectNames[subjectIndex];
       try {
-        await page.waitForSelector('a[href^="javascript:chkSubmit"]'); 
+        await page.waitForSelector('a[href^="javascript:chkSubmit"]'); // Wait for the subject link to appear
         const subjectElements = await page.$$('a[href^="javascript:chkSubmit"]');
         await subjectElements[subjectIndex].click();
         await page.waitForLoadState("domcontentloaded");
@@ -155,7 +106,8 @@ const loginAndScrape = async (username, password) => {
               lectureData.push({ lecture, date, attendanceStatus });
             }
           }
-          return {lectureData, totalAbsences };
+
+          return { lectureData, totalAbsences };
         });
 
         lectureData.push({ subjectName, lectureData: subjectLectureData.lectureData, totalAbsences: subjectLectureData.totalAbsences });
@@ -172,6 +124,8 @@ const loginAndScrape = async (username, password) => {
     });
 
     const marksData = [];
+    let sumQuiz = 0;
+    let sumAssignment = 0;
 
     for (let subjectIndex = 0; subjectIndex < subjectNames.length; subjectIndex++) {
       const subjectName = subjectNames[subjectIndex];
@@ -184,8 +138,6 @@ const loginAndScrape = async (username, password) => {
         const subjectMarksData = await page.evaluate(() => {
           const marksData = [];
           const marksRows = document.querySelectorAll("table.textColor tr");
-          let sumQuiz = 0;
-          let sumAssignment = 0;
 
           for (let i = 0; i < marksRows.length; i++) {
             const columns = marksRows[i].querySelectorAll("td");
@@ -195,20 +147,20 @@ const loginAndScrape = async (username, password) => {
               const marksObtained = columns[2].textContent.trim();
               marksData.push({ marksHead, maxMarks, marksObtained });
               if (marksObtained.toLowerCase() !== "not entered") {
-                // i am checking if the marksHead includes "quiz" or "assignment"
+                // Check if the marksHead includes "quiz" or "assignment" (case-insensitive)
                 if (marksHead.toLowerCase().includes("quiz")) {
-                  sumQuiz += 1;
+                  sumQuiz += parseFloat(marksObtained);
                 } else if (marksHead.toLowerCase().includes("assignment")) {
-                  sumAssignment += 1;
+                  sumAssignment += parseFloat(marksObtained);
                 }
               }
             }
           }
 
-          return { marksData, sumQuiz, sumAssignment};
+          return { marksData, sumQuiz, sumAssignment };
         });
 
-        marksData.push({ subjectName, marksData: subjectMarksData, lectureData, sumQuiz: subjectMarksData.sumQuiz, sumAssignment: subjectMarksData.sumAssignment });
+        marksData.push({ subjectName, marksData: subjectMarksData.marksData, sumQuiz: subjectMarksData.sumQuiz, sumAssignment: subjectMarksData.sumAssignment });
         await page.goBack();
       } catch (error) {
         console.error(`Error clicking on subject "${subjectName}": ${error}`);

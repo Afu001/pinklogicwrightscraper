@@ -1,4 +1,4 @@
-const express = require("express");
+/*const express = require("express");
 const { chromium } = require("playwright");
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -13,61 +13,12 @@ app.post("/scrape", async (req, res) => {
     const { data, subjects, marksData, lectureData } = await loginAndScrape(username, password);
     const numberOfSubjects = subjects.length;
     console.log(`Number of subjects: ${numberOfSubjects}`);
-
-    
-    const mergedData = subjects.map((subjectName) => {
-      const matchingMarksData = marksData.find((md) => md.subjectName === subjectName) || {};
-      const matchingLectureData = lectureData.find((ld) => ld.subjectName === subjectName) || {};
-      return {
-        subjectName,
-        marksData: matchingMarksData.marksData || [],
-        lectureData: matchingLectureData.lectureData || [],
-        sumQuiz: matchingMarksData.sumQuiz || 0,
-        sumAssignment: matchingMarksData.sumAssignment || 0,
-        totalAbsences: matchingLectureData.totalAbsences || 0,
-      };
-    });
-
-// i am logging merged data here
-mergedData.forEach((subjectData) => {
-  console.log(`Subject: ${subjectData.subjectName}`);
-  console.log(`  Sum Quiz: ${subjectData.marksData.sumQuiz}`);
-  console.log(`  Sum Assignment: ${subjectData.marksData.sumAssignment}`);
-  console.log(`  Total Absent: ${subjectData.totalAbsences}`);
-
-  //displaying marks obtained here
-  console.log("  Marks Obtained for Quizzes:");
-  if (Array.isArray(subjectData.marksData.marksData)) {
-    subjectData.marksData.marksData.forEach((quizInfo) => {
-      console.log(`    ${quizInfo.marksHead}: ${quizInfo.marksObtained}`);
-    });
-  } else {
-    console.log("    No quiz data available");
-  }
-
-  // display marks obtained for each assignment
-  console.log("  Marks Obtained for Assignments:");
-  if (Array.isArray(subjectData.marksData.marksData)) {
-    subjectData.marksData.marksData.forEach((assignmentInfo) => {
-      console.log(`    ${assignmentInfo.marksHead}: ${assignmentInfo.marksObtained}`);
-    });
-  } else {
-    console.log("    No assignment data available");
-  }
-});
-
-
-
-    res.json({ data, subjects, marksData, lectureData, mergedData });
+    res.json({ data, subjects, marksData, lectureData });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "An error occurred" });
   }
 });
-
-
-
-
 
 const loginAndScrape = async (username, password) => {
   let browser;
@@ -126,39 +77,33 @@ const loginAndScrape = async (username, password) => {
       })
     );
 
-    // Looping through subjects
+   
     const lectureData = [];
     for (let subjectIndex = 0; subjectIndex < subjectNames.length; subjectIndex++) {
       const subjectName = subjectNames[subjectIndex];
       try {
-        await page.waitForSelector('a[href^="javascript:chkSubmit"]'); 
+        await page.waitForSelector('a[href^="javascript:chkSubmit"]'); // Wait for the subject link to appear
         const subjectElements = await page.$$('a[href^="javascript:chkSubmit"]');
         await subjectElements[subjectIndex].click();
         await page.waitForLoadState("domcontentloaded");
 
         const subjectLectureData = await page.evaluate(() => {
           const lectureData = [];
-          let totalAbsences = 0;
           const lectureRows = document.querySelectorAll("table.textColor tr");
 
-          for (let num = 1; num < lectureRows.length; num++) {
+          for (num = 1; num < lectureRows.length; num++) {
             const columns = lectureRows[num].querySelectorAll("td");
             if (columns.length === 3) {
               const lecture = columns[0].textContent.trim();
               const date = columns[1].textContent.trim();
               const attendanceStatus = columns[2].textContent.trim();
-
-              if (attendanceStatus.toLowerCase() === "absent") {
-                totalAbsences++;
-              }
-
               lectureData.push({ lecture, date, attendanceStatus });
             }
           }
-          return {lectureData, totalAbsences };
+          return lectureData;
         });
 
-        lectureData.push({ subjectName, lectureData: subjectLectureData.lectureData, totalAbsences: subjectLectureData.totalAbsences });
+        lectureData.push({ subjectName, lectureData: subjectLectureData });
 
         // Go back to the main subjects page
         await page.goBack();
@@ -184,8 +129,6 @@ const loginAndScrape = async (username, password) => {
         const subjectMarksData = await page.evaluate(() => {
           const marksData = [];
           const marksRows = document.querySelectorAll("table.textColor tr");
-          let sumQuiz = 0;
-          let sumAssignment = 0;
 
           for (let i = 0; i < marksRows.length; i++) {
             const columns = marksRows[i].querySelectorAll("td");
@@ -194,28 +137,22 @@ const loginAndScrape = async (username, password) => {
               const maxMarks = columns[1].textContent.trim();
               const marksObtained = columns[2].textContent.trim();
               marksData.push({ marksHead, maxMarks, marksObtained });
-              if (marksObtained.toLowerCase() !== "not entered") {
-                // i am checking if the marksHead includes "quiz" or "assignment"
-                if (marksHead.toLowerCase().includes("quiz")) {
-                  sumQuiz += 1;
-                } else if (marksHead.toLowerCase().includes("assignment")) {
-                  sumAssignment += 1;
-                }
-              }
             }
           }
 
-          return { marksData, sumQuiz, sumAssignment};
+          return marksData;
         });
 
-        marksData.push({ subjectName, marksData: subjectMarksData, lectureData, sumQuiz: subjectMarksData.sumQuiz, sumAssignment: subjectMarksData.sumAssignment });
+        marksData.push({ subjectName, marksData: subjectMarksData, lectureData });
         await page.goBack();
       } catch (error) {
         console.error(`Error clicking on subject "${subjectName}": ${error}`);
       }
     }
 
-    return { data, subjects: subjectNames, marksData, lectureData };
+
+
+    return { data, subjects: subjectNames, marksData };
   } catch (error) {
     throw error;
   } finally {

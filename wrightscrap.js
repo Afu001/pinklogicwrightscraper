@@ -73,7 +73,7 @@ const loginAndScrape = async (username, password) => {
   let browser;
   try {
     browser = await chromium.launch({
-      headless: false,
+      headless: true,
     });
 
     const context = await browser.newContext();

@@ -10,7 +10,8 @@ app.use(bodyParser.json());
 app.post("/scrape", async (req, res) => {
   const { username, password } = req.body;
   try {
-    const { data, subjects, marksData, lectureData } = await loginAndScrape(username, password);
+    const semester = getSemester(); // Function to get the current semester
+    const { data, subjects, marksData, lectureData } = await loginAndScrape(username, password, semester);
     const numberOfSubjects = subjects.length;
     console.log(`Number of subjects: ${numberOfSubjects}`);
 
@@ -69,17 +70,20 @@ mergedData.forEach((subjectData) => {
 
 
 
-const loginAndScrape = async (username, password) => {
+const loginAndScrape = async (username, password, semester) => {
   let browser;
   try {
+    // Adjust the URL based on the semester
+    const url = `https://${semester}zabdesk.szabist-isb.edu.pk/`;
+    
     browser = await chromium.launch({
-      headless: true,
+      headless: false,
     });
 
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    await page.goto("https://fallzabdesk.szabist-isb.edu.pk/", {
+    await page.goto(url, {
       waitUntil: "domcontentloaded",
     });
 
@@ -88,7 +92,7 @@ const loginAndScrape = async (username, password) => {
     await page.click('img[alt="ZABDESK Login"]');
 
     await page.goto(
-      "https://fallzabdesk.szabist-isb.edu.pk/Student/QryCourseAttendance.asp",
+      `https://${semester}zabdesk.szabist-isb.edu.pk/Student/QryCourseAttendance.asp`,
       {
         waitUntil: "domcontentloaded",
       }
@@ -167,7 +171,7 @@ const loginAndScrape = async (username, password) => {
       }
     }
 
-    await page.goto("https://fallzabdesk.szabist-isb.edu.pk/Student/QryCourseRecapSheet.asp?OptionName=Current%20Semester%20Results", {
+    await page.goto(`https://${semester}zabdesk.szabist-isb.edu.pk/Student/QryCourseRecapSheet.asp?OptionName=Current%20Semester%20Results`, {
       waitUntil: "domcontentloaded",
     });
 
@@ -222,6 +226,20 @@ const loginAndScrape = async (username, password) => {
     if (browser) {
       await browser.close();
     }
+  }
+};
+
+
+const getSemester = () => {
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth() + 1; // Month is zero-based
+
+  if (currentMonth >= 10 || currentMonth <= 2) {
+    return "fall";
+  } else if (currentMonth >= 3 && currentMonth <= 6) {
+    return "spring";
+  } else {
+    return "summer";
   }
 };
 

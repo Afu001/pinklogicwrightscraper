@@ -77,7 +77,7 @@ const loginAndScrape = async (username, password, semester) => {
     const url = `https://${semester}zabdesk.szabist-isb.edu.pk/`;
     
     browser = await chromium.launch({
-      headless: false,
+      headless: true,
     });
 
     const context = await browser.newContext();

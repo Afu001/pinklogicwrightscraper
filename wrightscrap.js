@@ -244,11 +244,14 @@ const getSemester = () => {
 };
 
 const port = process.env.PORT || 3002;
+const headless = process.env.HEADLESS === 'true' || true; // Set to true by default
+const args = ["--no-sandbox", "--disable-setuid-sandbox", process.env.PLAYWRIGHT_BROWSERS_PATH].filter(Boolean);
+
 app.listen(port, async () => {
   // Launching browser once during server startup
   const browser = await chromium.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    headless,
+    args,
   });
   global.browser = browser;
 

@@ -244,6 +244,13 @@ const getSemester = () => {
 };
 
 const port = process.env.PORT || 3002;
-app.listen(port, () => {
+app.listen(port, async () => {
+  // Launching browser once during server startup
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+  global.browser = browser;
+
   console.log(`Server is running on port ${port}`);
 });
